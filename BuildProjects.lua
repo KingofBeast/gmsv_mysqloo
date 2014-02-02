@@ -1,4 +1,4 @@
-solution "AndyVincentGMod"
+solution "MySQLOO"
 
 	language "C++"
 	location ( os.get() .."-".. _ACTION )
