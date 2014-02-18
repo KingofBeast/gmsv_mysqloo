@@ -3,6 +3,9 @@
 #include <string.h>
 #include <stdarg.h>
 #include <sstream>
+#ifdef LINUX
+#include <stdio.h>
+#endif
 
 LuaObjectBase::LuaObjectBase(const LuaClassInfo& classInfo, lua_State* state)
 	: m_luaState(state)
@@ -38,7 +41,11 @@ int LuaObjectBase::toString()
 		return 0;
 
 	char str[64];
+	#ifdef LINUX
+	snprintf(str, sizeof(m_classInfo.className()) + sizeof(this), "[%s:%08X]", m_classInfo.className(), this);
+	#else
 	sprintf_s(str, "[%s:%08X]", m_classInfo.className(), this);
+	#endif
 	MLUA->PushString(str);
 	return 1;
 }
