@@ -4,7 +4,7 @@
 #include "CLASS_Database.h"
 #include "CLASS_Query.h"
 
-#define VERSION "8.1"
+#define VERSION "8.1 r001"
 
 int DatabaseConnect(lua_State* state)
 {
@@ -110,6 +110,7 @@ GMOD_MODULE_OPEN()
 
 			LUA->PushNumber((float)CLIENT_MULTI_RESULTS); LUA->SetField(-2, "CLIENT_MULTI_RESULTS");
 			LUA->PushNumber((float)CLIENT_MULTI_STATEMENTS); LUA->SetField(-2, "CLIENT_MULTI_STATEMENTS");
+			LUA->PushNumber((float)CLIENT_INTERACTIVE); LUA->SetField(-2, "CLIENT_INTERACTIVE");
 
 			LUA->PushCFunction(DatabaseConnect); LUA->SetField(-2, "connect");
 
