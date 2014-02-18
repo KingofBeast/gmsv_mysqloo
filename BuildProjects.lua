@@ -21,6 +21,10 @@ solution "MySQLOO"
 	{ 
 		"Release"
 	}
+	platforms
+	{
+		"x32"
+	}
 	
 	configuration "Release"
 		defines { "NDEBUG" }
