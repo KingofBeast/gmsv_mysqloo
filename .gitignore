@@ -1,3 +1,5 @@
+*.exe
+
 #################
 ## Eclipse
 #################
@@ -48,11 +50,15 @@ x64/
 build/
 [Bb]in/
 [Oo]bj/
+lib/
+solutions/
 
 # MSTest test Results
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 
+*.lib
+*.exp
 *_i.c
 *_p.c
 *.ilk

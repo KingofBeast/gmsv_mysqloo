@@ -1,7 +1,7 @@
 solution "MySQLOO"
 
 	language "C++"
-	location ( os.get() .."-".. _ACTION )
+	location ( "solutions/" .. os.get() .. "-" .. _ACTION )
 	flags { "Symbols", "NoEditAndContinue", "NoPCH", "StaticRuntime", "EnableSSE" }
 	targetdir ( "lib/" .. os.get() .. "/" )
 	includedirs {	"../gmodlua/include/",
@@ -50,7 +50,10 @@ solution "MySQLOO"
 		defines{ "GMMODULE" }
 		files{ "MySQLOO/source/**.*", "MySQLOO/includes/**.*" }
 		kind "SharedLib"
-		libdirs { "../mysql/lib/debug/", "../mysql/lib/opt/", "lib/" .. os.get() .. "/" }
-		local libmysql = (os.get() == "linux" and "mysql" or "libmysql")
+		libdirs { "../mysql/lib/", "lib/" .. os.get() .. "/" }
+		local platform = (os.get() == "linux" and "linux" or "win32")
+		targetname( "gmsv_mysqloo_" .. platform)
+		local libmysql = (os.get() == "linux" and "mysqlclient" or "libmysql")
+		targetdir("RELEASE")
 		links { libmysql, "ThreadOO", "LuaOO" }
 		
