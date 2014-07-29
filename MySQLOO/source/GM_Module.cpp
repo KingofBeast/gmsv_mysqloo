@@ -4,7 +4,7 @@
 #include "CLASS_Database.h"
 #include "CLASS_Query.h"
 
-#define VERSION "8.1 r001"
+#define VERSION "8.2 r001"
 
 int DatabaseConnect(lua_State* state)
 {

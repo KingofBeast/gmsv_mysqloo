@@ -2,6 +2,7 @@
 #define _CLASS_QUERY_H_
 
 #include "CLASS_LuaObjectBase.h"
+#include "CLASS_QueryThread.h"
 #include "LIBRARY_MySql.h"
 
 class QueryThread;
@@ -60,7 +61,7 @@ private:
 	QueryThread* m_queryThread;
 	std::vector<std::string> m_columns;
 	std::vector<int> m_columnTypes;
-	std::vector<DataRow*> m_allRows;
+	std::vector<QueryThread::QueryDataInfo*> m_allRows;
 	int m_status;
 	int m_options;
 

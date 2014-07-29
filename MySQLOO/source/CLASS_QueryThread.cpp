@@ -119,138 +119,151 @@ int QueryThread::run()
 			return 0;
 	}
 
-	MYSQL_RES* pResult = mysql_use_result(sql);
-	if (!pResult)
-	{
-		if (checkAbort())
+	int status = -1;
+	int statement = 0;
+	do {
+		statement++;
+
+		MYSQL_RES* pResult = mysql_use_result(sql);
+		if (!pResult)
 		{
+			if (checkAbort())
+			{
+				m_database->unlockHandle();
+				return 0;
+			}
+
+			if (mysql_errno(sql))
+			{
+				MutexLocker lock(m_resultInfo);
+				m_error = true;
+				m_errorText = mysql_error(sql);
+				postEvent(QUERY_ERROR);
+			}
+			else
+			{
+				MutexLocker lock(m_resultInfo);
+				m_error = false;
+				m_lastInsert = mysql_insert_id(sql);
+				m_affectedRows = mysql_affected_rows(sql);
+				postEvent(QUERY_SUCCESS_NO_DATA);
+			}
 			m_database->unlockHandle();
 			return 0;
 		}
 
-		if(mysql_errno(sql))
-		{
-			MutexLocker lock(m_resultInfo);
-			m_error = true;
-			m_errorText = mysql_error(sql);
-			postEvent( QUERY_ERROR );
-		}
-		else
-		{
-			MutexLocker lock(m_resultInfo);
-			m_error = false;
-			m_lastInsert = mysql_insert_id(sql);
-			m_affectedRows = mysql_affected_rows(sql);
-			postEvent( QUERY_SUCCESS_NO_DATA );
-		}
-		m_database->unlockHandle();
-		return 0;
-	}
+		int numColumns = mysql_num_fields(pResult);
 
-	int numColumns = mysql_num_fields(pResult);
-  
-	{
 		{
-			MutexLocker lock(m_resultInfo);
-			for(int i = 0; i < numColumns; i++)
 			{
-				MYSQL_FIELD* field = mysql_fetch_field_direct(pResult, i);
-				if (field && field->name && strlen(field->name))
+				MutexLocker lock(m_resultInfo);
+				for (int i = 0; i < numColumns; i++)
 				{
-					m_columns.push_back( std::string(field->name) );
+					MYSQL_FIELD* field = mysql_fetch_field_direct(pResult, i);
+					if (field && field->name && strlen(field->name))
+					{
+						m_columns.push_back(std::string(field->name));
 
-					if (field->type == MYSQL_TYPE_TINY || field->type == MYSQL_TYPE_SHORT || field->type == MYSQL_TYPE_LONG || field->type == MYSQL_TYPE_LONG)
-						m_columnType.push_back( INTEGER );
-					else if (field->type == MYSQL_TYPE_FLOAT || field->type == MYSQL_TYPE_DOUBLE)
-						m_columnType.push_back( FLOATING_POINT );
+						if (field->type == MYSQL_TYPE_TINY || field->type == MYSQL_TYPE_SHORT || field->type == MYSQL_TYPE_LONG || field->type == MYSQL_TYPE_LONG)
+							m_columnType.push_back(INTEGER);
+						else if (field->type == MYSQL_TYPE_FLOAT || field->type == MYSQL_TYPE_DOUBLE)
+							m_columnType.push_back(FLOATING_POINT);
+						else
+							m_columnType.push_back(STRING);
+					}
 					else
-						m_columnType.push_back( STRING );
+					{
+						std::stringstream col;
+						col << (i + 1);
+
+						m_columns.push_back(col.str());
+						m_columnType.push_back(STRING);
+					}
+				}
+			}
+
+			if (!checkAbort())
+				postEvent(QUERY_COLUMNS);
+		}
+
+		MYSQL_ROW CurrentRow = mysql_fetch_row(pResult);
+		while (CurrentRow)
+		{
+			if (checkAbort())
+			{
+				CurrentRow = mysql_fetch_row(pResult);
+				continue;
+			}
+
+			DataRow* row = new DataRow;
+
+			for (int i = 0; i < numColumns; i++)
+			{
+				if (CurrentRow[i])
+				{
+					row->push_back(new std::string(CurrentRow[i]));
 				}
 				else
 				{
-					std::stringstream col;
-					col << (i+1);
-
-					m_columns.push_back( col.str() );
-					m_columnType.push_back( STRING );
+					row->push_back(0);
 				}
 			}
-		}
 
-		if (!checkAbort())
-			postEvent( QUERY_COLUMNS );
-	}
+			QueryDataInfo* info = new QueryDataInfo;
+			info->statement = statement;
+			info->row = row;
+			postEvent(QUERY_DATA, info);
 
-	MYSQL_ROW CurrentRow = mysql_fetch_row(pResult);
-	while (CurrentRow)
-	{
-		if (checkAbort())
-		{
 			CurrentRow = mysql_fetch_row(pResult);
-			continue;
 		}
 
-		DataRow* row = new DataRow;
-
-		for(int i = 0; i < numColumns; i++)
+		if (mysql_errno(sql))
 		{
-			if (CurrentRow[i])
 			{
-				row->push_back( new std::string( CurrentRow[i] ) );
+				MutexLocker lock(m_resultInfo);
+				m_error = true;
+				m_errorText = mysql_error(sql);
 			}
+			if (!checkAbort())
+				postEvent(QUERY_ERROR);
 			else
 			{
-				row->push_back( 0 );
+				postEvent(QUERY_ABORTED);
+
+				MutexLocker lock(m_resultInfo);
+				m_abort = false;
 			}
-		}    
-
-		postEvent( QUERY_DATA, row );
-
-		CurrentRow = mysql_fetch_row(pResult);
-	}
-
-	if(mysql_errno(sql))
-	{
-		{
-			MutexLocker lock(m_resultInfo);
-			m_error = true;
-			m_errorText = mysql_error(sql);
 		}
-		if (!checkAbort())
-			postEvent( QUERY_ERROR );
 		else
 		{
-			postEvent( QUERY_ABORTED );
+			{
+				MutexLocker lock(m_resultInfo);
+				m_error = false;
+				m_lastInsert = mysql_insert_id(sql);
+				m_affectedRows = mysql_affected_rows(sql);
+			}
+			if (!checkAbort() && (status = mysql_next_result(sql)) == -1)
+				postEvent(QUERY_SUCCESS);
+			else
+			{
+				postEvent(QUERY_ABORTED);
 
-			MutexLocker lock(m_resultInfo);
-			m_abort = false;
+				MutexLocker lock(m_resultInfo);
+				m_abort = false;
+			}
 		}
-	}
-	else
-	{
-		{
-			MutexLocker lock(m_resultInfo);
-			m_error = false;
-			m_lastInsert = mysql_insert_id(sql);
-			m_affectedRows = mysql_affected_rows(sql);
-		}
-		if (!checkAbort())
-			postEvent( QUERY_SUCCESS );
-		else
-		{
-			postEvent( QUERY_ABORTED );
 
-			MutexLocker lock(m_resultInfo);
-			m_abort = false;
-		}
-	}
-		
-	mysql_free_result(pResult);
+		mysql_free_result(pResult);
 
-	while (mysql_next_result(sql) == 0) {
+		if (status > 0)
+			postEvent(QUERY_ERROR);
+
+	} while (status == 0);
+
+	/*while (mysql_next_result(sql) == 0) {
 		pResult = mysql_store_result(sql);
 		mysql_free_result(pResult);
-	}
+	}*/
 
 	m_database->unlockHandle();
 

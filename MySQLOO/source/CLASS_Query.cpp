@@ -72,11 +72,11 @@ void Query::reset()
 	}
 
 	m_columns.clear();
-	for( std::vector<DataRow*>::iterator rowIterator = m_allRows.begin();
+	for( std::vector<QueryThread::QueryDataInfo*>::iterator rowIterator = m_allRows.begin();
 		rowIterator != m_allRows.end();
 		++rowIterator)
 	{
-		DataRow* row = reinterpret_cast<DataRow*>(*rowIterator);
+		QueryThread::QueryDataInfo* row = reinterpret_cast<QueryThread::QueryDataInfo*>(*rowIterator);
 		delete row;
 	}
 	m_allRows.clear();
@@ -162,22 +162,41 @@ int Query::setOption()
 
 int Query::getData()
 {
+	// ret = {}
 	MLUA->CreateTable();
   
 	float rowNumber = 1;
-	for( std::vector<DataRow*>::iterator it = m_allRows.begin();
+	for (std::vector<QueryThread::QueryDataInfo*>::iterator it = m_allRows.begin();
 		it != m_allRows.end();
 		++it)
 	{
-		int rowObject = rowToLua( *it );
+		QueryThread::QueryDataInfo* data = *it;
+
+		// ret[statement] = ret[statement] or {}
+		MLUA->PushNumber(data->statement);
+		MLUA->GetTable(-2);
+		if (MLUA->IsType(-1, GarrysMod::Lua::Type::NIL))
+		{
+			MLUA->Pop();
+			MLUA->PushNumber(data->statement);
+			MLUA->CreateTable();
+			MLUA->SetTable(1);
+			MLUA->PushNumber(data->statement);
+			MLUA->GetTable(-2);
+			rowNumber = 1;
+		}
+
+		int rowObject = rowToLua( data->row );
 		MLUA->PushNumber(rowNumber);
 		MLUA->ReferencePush(rowObject);
 		MLUA->SetTable(-3);
 		MLUA->ReferenceFree(rowObject);
+		MLUA->Pop();
 	    
 		rowNumber++;
 	}
 
+	// return ret
 	return 1;
 }
 
@@ -344,12 +363,13 @@ void Query::poll()
 			case QueryThread::QUERY_DATA:
 				{
 					m_status = QUERY_READING_DATA;
-					DataRow* row = reinterpret_cast<DataRow*>(it->data);
+					QueryThread::QueryDataInfo* queryInfo = reinterpret_cast<QueryThread::QueryDataInfo*>(it->data);
+					DataRow* row = queryInfo->row;
 					if (!row)
 						break;
 
 					if (testOption(OPTION_CACHE))
-						m_allRows.push_back(row);
+						m_allRows.push_back(queryInfo);
 
 					if (m_queryThread->checkAbort())
 						continue;
