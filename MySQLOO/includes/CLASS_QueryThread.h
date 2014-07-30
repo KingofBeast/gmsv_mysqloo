@@ -26,6 +26,10 @@ public:
 		FLOATING_POINT,
 		STRING,
 	};
+	struct QueryDataInfo {
+		int statement;
+		DataRow* row;
+	};
 
 	QueryThread(Database* dbase);
 	virtual ~QueryThread(void);
